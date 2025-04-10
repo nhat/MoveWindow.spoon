@@ -58,6 +58,83 @@ local function edgesAtMargins(frame, maxFrame)
 end
 
 -- Internal function to resize the window
+local function calculateHorizontalResize(frame, maxFrame, dw, edges)
+    local newWidth = frame.w
+    local newX = frame.x
+    
+    if dw == 0 then
+        -- No horizontal resizing
+        return newWidth, newX
+    end
+    
+    if edges.left and edges.right then
+        -- Can't resize horizontally if both edges are at margins
+        return newWidth, newX
+    elseif edges.left then
+        -- Left edge fixed, expand right only
+        newWidth = frame.w + dw
+    elseif edges.right then
+        -- Right edge fixed, expand left only
+        newWidth = frame.w + dw
+        newX = frame.x - dw
+    else
+        -- Normal case, expand from center
+        newWidth = frame.w + dw
+        newX = frame.x - (dw / 2)
+    end
+    
+    return newWidth, newX
+end
+
+local function calculateVerticalResize(frame, maxFrame, dh, edges)
+    local newHeight = frame.h
+    local newY = frame.y
+    
+    if dh == 0 then
+        -- No vertical resizing
+        return newHeight, newY
+    end
+    
+    if edges.top and edges.bottom then
+        -- Can't resize vertically if both edges are at margins
+        return newHeight, newY
+    elseif edges.top then
+        -- Top edge fixed, expand bottom only
+        newHeight = frame.h + dh
+    elseif edges.bottom then
+        -- Bottom edge fixed, expand top only
+        newHeight = frame.h + dh
+        newY = frame.y - dh
+    else
+        -- Normal case, expand from center
+        newHeight = frame.h + dh
+        newY = frame.y - (dh / 2)
+    end
+    
+    return newHeight, newY
+end
+
+local function enforceFrameBoundaries(frame, maxFrame)
+    local newFrame = {
+        w = math.max(50, frame.w), -- Minimum width
+        h = math.max(50, frame.h), -- Minimum height
+        x = frame.x,
+        y = frame.y
+    }
+    
+    -- Enforce screen boundaries with margins
+    if newFrame.x < maxFrame.x then newFrame.x = maxFrame.x end
+    if newFrame.y < maxFrame.y then newFrame.y = maxFrame.y end
+    if newFrame.x + newFrame.w > maxFrame.x + maxFrame.w then
+        newFrame.w = maxFrame.x + maxFrame.w - newFrame.x
+    end
+    if newFrame.y + newFrame.h > maxFrame.y + maxFrame.h then
+        newFrame.h = maxFrame.y + maxFrame.h - newFrame.y
+    end
+    
+    return newFrame
+end
+
 local function resizeWindow(dw, dh)
     local win, screen = getFocusedWindowAndScreen()
     if not win then return end
@@ -67,62 +144,20 @@ local function resizeWindow(dw, dh)
     
     -- Calculate new dimensions based on edge constraints
     local edges = edgesAtMargins(f, maxFrame)
+    
+    -- Calculate new dimensions
+    local newWidth, newX = calculateHorizontalResize(f, maxFrame, dw, edges)
+    local newHeight, newY = calculateVerticalResize(f, maxFrame, dh, edges)
+    
     local newFrame = {
-        w = f.w,
-        h = f.h,
-        x = f.x,
-        y = f.y
+        w = newWidth,
+        h = newHeight,
+        x = newX,
+        y = newY
     }
     
-    -- Handle horizontal resizing
-    if dw ~= 0 then
-        if edges.left and edges.right then
-            -- Can't resize horizontally if both edges are at margins
-        elseif edges.left then
-            -- Left edge fixed, expand right only
-            newFrame.w = f.w + dw
-        elseif edges.right then
-            -- Right edge fixed, expand left only
-            newFrame.w = f.w + dw
-            newFrame.x = f.x - dw
-        else
-            -- Normal case, expand from center
-            newFrame.w = f.w + dw
-            newFrame.x = f.x - (dw / 2)
-        end
-    end
-    
-    -- Handle vertical resizing
-    if dh ~= 0 then
-        if edges.top and edges.bottom then
-            -- Can't resize vertically if both edges are at margins
-        elseif edges.top then
-            -- Top edge fixed, expand bottom only
-            newFrame.h = f.h + dh
-        elseif edges.bottom then
-            -- Bottom edge fixed, expand top only
-            newFrame.h = f.h + dh
-            newFrame.y = f.y - dh
-        else
-            -- Normal case, expand from center
-            newFrame.h = f.h + dh
-            newFrame.y = f.y - (dh / 2)
-        end
-    end
-    
-    -- Enforce minimum size
-    newFrame.w = math.max(50, newFrame.w)
-    newFrame.h = math.max(50, newFrame.h)
-    
-    -- Final boundary checks
-    if newFrame.x < maxFrame.x then newFrame.x = maxFrame.x end
-    if newFrame.y < maxFrame.y then newFrame.y = maxFrame.y end
-    if newFrame.x + newFrame.w > maxFrame.x + maxFrame.w then
-        newFrame.w = maxFrame.x + maxFrame.w - newFrame.x
-    end
-    if newFrame.y + newFrame.h > maxFrame.y + maxFrame.h then
-        newFrame.h = maxFrame.y + maxFrame.h - newFrame.y
-    end
+    -- Enforce boundaries
+    newFrame = enforceFrameBoundaries(newFrame, maxFrame)
     
     -- Apply the new frame
     win:setFrame(newFrame, 0) -- no animation
@@ -145,10 +180,6 @@ function obj:isWindowMaximized(frame, maxFrame)
            frame.w == maxFrame.w and frame.h == maxFrame.h
 end
 
-function obj:isValidWindow(win)
-    return isValidWindow(win)
-end
-
 function obj:toggleMaximizeFocusedWindow()
     local win, screen = getFocusedWindowAndScreen()
     if not win then return end
@@ -165,22 +196,34 @@ function obj:toggleMaximizeFocusedWindow()
     end
 end
 
+local function bindHotkeyWithRepeat(modifiers, key, pressFn)
+    hs.hotkey.bind(modifiers, key, pressFn, nil, pressFn)
+end
+
+-- Helper function to bind hotkeys for window movement
+local function bindMovementHotkeys(obj)
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "h", function() moveWindow(-obj.moveStep, 0) end)
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "l", function() moveWindow(obj.moveStep, 0) end)
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "k", function() moveWindow(0, -obj.moveStep) end)
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "j", function() moveWindow(0, obj.moveStep) end)
+end
+
+-- Helper function to bind hotkeys for window resizing
+local function bindResizeHotkeys(obj)
+    bindHotkeyWithRepeat({"alt", "shift"}, "=", function() resizeWindow(obj.resizeStep, obj.resizeStep) end)
+    bindHotkeyWithRepeat({"alt", "shift"}, "-", function() resizeWindow(-obj.resizeStep, -obj.resizeStep) end)
+end
+
 --- WindowMover:start()
 --- Method
 --- Binds hotkeys for moving the window.
 function obj:start()
-    hs.hotkey.bind({ "ctrl", "alt" }, "h", function() moveWindow(-obj.moveStep, 0) end, nil, function() moveWindow(-obj.moveStep, 0) end)
-    hs.hotkey.bind({ "ctrl", "alt" }, "l", function() moveWindow(obj.moveStep, 0) end, nil, function() moveWindow(obj.moveStep, 0) end)
-    hs.hotkey.bind({ "ctrl", "alt" }, "k", function() moveWindow(0, -obj.moveStep) end, nil, function() moveWindow(0, -obj.moveStep) end)
-    hs.hotkey.bind({ "ctrl", "alt" }, "j", function() moveWindow(0, obj.moveStep) end, nil, function() moveWindow(0, obj.moveStep) end)
-
-    -- Hotkey to toggle maximize
-    hs.hotkey.bind({"alt"}, "f", function() obj:toggleMaximizeFocusedWindow() end)
+    bindMovementHotkeys(self)
+    bindResizeHotkeys(self)
     
-    -- Hotkeys for resizing (made repeatable)
-    hs.hotkey.bind({"alt", "shift"}, "=", function() resizeWindow(obj.resizeStep, obj.resizeStep) end, nil, function() resizeWindow(obj.resizeStep, obj.resizeStep) end)
-    hs.hotkey.bind({"alt", "shift"}, "-", function() resizeWindow(-obj.resizeStep, -obj.resizeStep) end, nil, function() resizeWindow(-obj.resizeStep, -obj.resizeStep) end)
-
+    -- Hotkey to toggle maximize
+    hs.hotkey.bind({"alt"}, "f", function() self:toggleMaximizeFocusedWindow() end)
+    
     return self
 end
 
