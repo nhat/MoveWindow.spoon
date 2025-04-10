@@ -57,6 +57,11 @@ local function edgesAtMargins(frame, maxFrame)
     }
 end
 
+local function isWindowMaximized(frame, maxFrame)
+    return frame.x == maxFrame.x and frame.y == maxFrame.y and 
+           frame.w == maxFrame.w and frame.h == maxFrame.h
+end
+
 -- Internal function to resize the window
 local function calculateHorizontalResize(frame, maxFrame, dw, edges)
     local newWidth = frame.w
@@ -67,7 +72,7 @@ local function calculateHorizontalResize(frame, maxFrame, dw, edges)
         return newWidth, newX
     end
     
-    local isMaximized = obj:isWindowMaximized(frame, maxFrame)
+    local isMaximized = isWindowMaximized(frame, maxFrame)
     if not isMaximized and edges.left and edges.right then
         -- Can't resize horizontally if both edges are at margins
         return newWidth, newX
@@ -96,7 +101,7 @@ local function calculateVerticalResize(frame, maxFrame, dh, edges)
         return newHeight, newY
     end
     
-    local isMaximized = obj:isWindowMaximized(frame, maxFrame)
+    local isMaximized = isWindowMaximized(frame, maxFrame)
     if not isMaximized and edges.top and edges.bottom then
         -- Can't resize vertically if both edges are at margins
         return newHeight, newY
@@ -177,19 +182,14 @@ hs.window.filter.default:subscribe(hs.window.filter.windowDestroyed, function(wi
     end
 end)
 
-function obj:isWindowMaximized(frame, maxFrame)
-    return frame.x == maxFrame.x and frame.y == maxFrame.y and 
-           frame.w == maxFrame.w and frame.h == maxFrame.h
-end
-
-function obj:toggleMaximizeFocusedWindow()
+local function toggleMaximizeFocusedWindow()
     local win, screen = getFocusedWindowAndScreen()
     if not win then return end
     
-    local maxFrame = getMaxFrame(screen, self.margin)
+    local maxFrame = getMaxFrame(screen, obj.margin)
     local id, frame = win:id(), win:frame()
     
-    if self:isWindowMaximized(frame, maxFrame) and previousWindowFrames[id] then
+    if isWindowMaximized(frame, maxFrame) and previousWindowFrames[id] then
         win:setFrame(previousWindowFrames[id], 0)
         previousWindowFrames[id], previousWindowScreens[id] = nil, nil
     else
@@ -198,33 +198,23 @@ function obj:toggleMaximizeFocusedWindow()
     end
 end
 
-local function bindHotkeyWithRepeat(modifiers, key, pressFn)
-    hs.hotkey.bind(modifiers, key, pressFn, nil, pressFn)
+local function bindHotkeyWithRepeat(modifiers, key, pressFn, ...)
+    local args = {...}
+    hs.hotkey.bind(modifiers, key, function() pressFn(table.unpack(args)) end, nil, function() pressFn(table.unpack(args)) end)
 end
 
--- Helper function to bind hotkeys for window movement
-local function bindMovementHotkeys(obj)
-    bindHotkeyWithRepeat({ "ctrl", "alt" }, "h", function() moveWindow(-obj.moveStep, 0) end)
-    bindHotkeyWithRepeat({ "ctrl", "alt" }, "l", function() moveWindow(obj.moveStep, 0) end)
-    bindHotkeyWithRepeat({ "ctrl", "alt" }, "k", function() moveWindow(0, -obj.moveStep) end)
-    bindHotkeyWithRepeat({ "ctrl", "alt" }, "j", function() moveWindow(0, obj.moveStep) end)
-end
-
--- Helper function to bind hotkeys for window resizing
-local function bindResizeHotkeys(obj)
-    bindHotkeyWithRepeat({"alt", "shift"}, "=", function() resizeWindow(obj.resizeStep, obj.resizeStep) end)
-    bindHotkeyWithRepeat({"alt", "shift"}, "-", function() resizeWindow(-obj.resizeStep, -obj.resizeStep) end)
-end
-
---- WindowMover:start()
---- Method
---- Binds hotkeys for moving the window.
 function obj:start()
-    bindMovementHotkeys(self)
-    bindResizeHotkeys(self)
+    -- Bind hotkeys to move window
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "h", moveWindow, -obj.moveStep, 0)
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "l", moveWindow, obj.moveStep, 0)
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "k", moveWindow, 0, -obj.moveStep)
+    bindHotkeyWithRepeat({ "ctrl", "alt" }, "j", moveWindow, 0, obj.moveStep)
+    -- Bind hotkeys to resize windows
+    bindHotkeyWithRepeat({"alt", "shift"}, "=", resizeWindow, obj.resizeStep, obj.resizeStep)
+    bindHotkeyWithRepeat({"alt", "shift"}, "-", resizeWindow, -obj.resizeStep, -obj.resizeStep)
     
-    -- Hotkey to toggle maximize
-    hs.hotkey.bind({"alt"}, "f", function() self:toggleMaximizeFocusedWindow() end)
+    -- Bind hotkey to toggle maximize
+    hs.hotkey.bind({"alt"}, "f", toggleMaximizeFocusedWindow)
     
     return self
 end
