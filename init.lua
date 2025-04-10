@@ -7,6 +7,7 @@ obj.name = "MoveWindow"
 -- Configurable step size
 obj.moveStep = 10
 obj.margin = 8
+obj.resizeStep = 20 -- How many pixels to grow/shrink in each direction
 
 -- Internal function to move the window
 local function moveWindow(dx, dy)
@@ -15,6 +16,51 @@ local function moveWindow(dx, dy)
     local f = win:frame()
     f.x = f.x + dx
     f.y = f.y + dy
+    win:setFrame(f, 0) -- no animation
+end
+
+-- Internal function to resize the window
+local function resizeWindow(dw, dh)
+    local win = hs.window.focusedWindow()
+    if not win then return end
+    
+    local screen = win:screen()
+    if not screen then return end
+    
+    local screenFrame = screen:frame()
+    local maxFrame = {
+        x = screenFrame.x + obj.margin,
+        y = screenFrame.y + obj.margin,
+        w = screenFrame.w - (obj.margin * 2),
+        h = screenFrame.h - (obj.margin * 2)
+    }
+    
+    local f = win:frame()
+    -- Calculate new dimensions
+    local newWidth = f.w + dw
+    local newHeight = f.h + dh
+    local newX = f.x - (dw / 2)
+    local newY = f.y - (dh / 2)
+    
+    -- Enforce minimum size
+    newWidth = math.max(50, newWidth)
+    newHeight = math.max(50, newHeight)
+    
+    -- Respect the maximum frame with margins
+    if newX < maxFrame.x then newX = maxFrame.x end
+    if newY < maxFrame.y then newY = maxFrame.y end
+    if newX + newWidth > maxFrame.x + maxFrame.w then
+        newWidth = maxFrame.x + maxFrame.w - newX
+    end
+    if newY + newHeight > maxFrame.y + maxFrame.h then
+        newHeight = maxFrame.y + maxFrame.h - newY
+    end
+    
+    -- Apply the new frame
+    f.w = newWidth
+    f.h = newHeight
+    f.x = newX
+    f.y = newY
     win:setFrame(f, 0) -- no animation
 end
 
@@ -29,6 +75,10 @@ function obj:start()
 
     -- Hotkey to toggle maximize
     hs.hotkey.bind({"alt"}, "f", function() obj:toggleMaximizeFocusedWindow() end)
+    
+    -- Hotkeys for resizing (made repeatable)
+    hs.hotkey.bind({"alt", "shift"}, "=", function() resizeWindow(obj.resizeStep, obj.resizeStep) end, nil, function() resizeWindow(obj.resizeStep, obj.resizeStep) end)
+    hs.hotkey.bind({"alt", "shift"}, "-", function() resizeWindow(-obj.resizeStep, -obj.resizeStep) end, nil, function() resizeWindow(-obj.resizeStep, -obj.resizeStep) end)
 
     return self
 end
