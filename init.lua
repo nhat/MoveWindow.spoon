@@ -67,13 +67,14 @@ local function calculateHorizontalResize(frame, maxFrame, dw, edges)
         return newWidth, newX
     end
     
-    if edges.left and edges.right then
+    local isMaximized = obj:isWindowMaximized(frame, maxFrame)
+    if not isMaximized and edges.left and edges.right then
         -- Can't resize horizontally if both edges are at margins
         return newWidth, newX
-    elseif edges.left then
+    elseif isMaximized and edges.left then
         -- Left edge fixed, expand right only
         newWidth = frame.w + dw
-    elseif edges.right then
+    elseif not isMaximized and edges.right then
         -- Right edge fixed, expand left only
         newWidth = frame.w + dw
         newX = frame.x - dw
@@ -95,13 +96,14 @@ local function calculateVerticalResize(frame, maxFrame, dh, edges)
         return newHeight, newY
     end
     
-    if edges.top and edges.bottom then
+    local isMaximized = obj:isWindowMaximized(frame, maxFrame)
+    if not isMaximized and edges.top and edges.bottom then
         -- Can't resize vertically if both edges are at margins
         return newHeight, newY
-    elseif edges.top then
+    elseif not isMaximized and edges.top then
         -- Top edge fixed, expand bottom only
         newHeight = frame.h + dh
-    elseif edges.bottom then
+    elseif not isMaximized and edges.bottom then
         -- Bottom edge fixed, expand top only
         newHeight = frame.h + dh
         newY = frame.y - dh
