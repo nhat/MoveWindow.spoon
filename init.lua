@@ -36,17 +36,60 @@ local function resizeWindow(dw, dh)
     }
     
     local f = win:frame()
-    -- Calculate new dimensions
     local newWidth = f.w + dw
     local newHeight = f.h + dh
-    local newX = f.x - (dw / 2)
-    local newY = f.y - (dh / 2)
+    local newX = f.x
+    local newY = f.y
+    
+    -- Check if window edges are already at margins
+    local leftEdgeAtMargin = math.abs(f.x - maxFrame.x) < 2
+    local rightEdgeAtMargin = math.abs((f.x + f.w) - (maxFrame.x + maxFrame.w)) < 2
+    local topEdgeAtMargin = math.abs(f.y - maxFrame.y) < 2
+    local bottomEdgeAtMargin = math.abs((f.y + f.h) - (maxFrame.y + maxFrame.h)) < 2
+    
+    -- Handle horizontal resizing
+    if dw ~= 0 then
+        if leftEdgeAtMargin and rightEdgeAtMargin then
+            -- Can't resize horizontally if both edges are at margins
+            newWidth = f.w
+        elseif leftEdgeAtMargin then
+            -- Left edge fixed, expand right only
+            newWidth = f.w + dw
+        elseif rightEdgeAtMargin then
+            -- Right edge fixed, expand left only
+            newWidth = f.w + dw
+            newX = f.x - dw
+        else
+            -- Normal case, expand from center
+            newWidth = f.w + dw
+            newX = f.x - (dw / 2)
+        end
+    end
+    
+    -- Handle vertical resizing
+    if dh ~= 0 then
+        if topEdgeAtMargin and bottomEdgeAtMargin then
+            -- Can't resize vertically if both edges are at margins
+            newHeight = f.h
+        elseif topEdgeAtMargin then
+            -- Top edge fixed, expand bottom only
+            newHeight = f.h + dh
+        elseif bottomEdgeAtMargin then
+            -- Bottom edge fixed, expand top only
+            newHeight = f.h + dh
+            newY = f.y - dh
+        else
+            -- Normal case, expand from center
+            newHeight = f.h + dh
+            newY = f.y - (dh / 2)
+        end
+    end
     
     -- Enforce minimum size
     newWidth = math.max(50, newWidth)
     newHeight = math.max(50, newHeight)
     
-    -- Respect the maximum frame with margins
+    -- Final boundary checks
     if newX < maxFrame.x then newX = maxFrame.x end
     if newY < maxFrame.y then newY = maxFrame.y end
     if newX + newWidth > maxFrame.x + maxFrame.w then
