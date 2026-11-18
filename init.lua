@@ -8,7 +8,6 @@ obj.name = "MoveWindow"
 obj.moveStep = 10
 obj.margin = 8
 obj.resizeStep = 20 -- How many pixels to grow/shrink in each direction
-obj.animationDuration = 0.20
 
 -- Helper functions for window operations
 local function getMaxFrame(screen, margin)
@@ -171,34 +170,6 @@ local function resizeWindow(dw, dh)
     win:setFrame(newFrame, 0) -- no animation
 end
 
--- === Maximize Toggle Feature ===
-local previousWindowFrames = {}
-local previousWindowScreens = {}
-
--- Clean up stored frames when a window is destroyed
-hs.window.filter.default:subscribe(hs.window.filter.windowDestroyed, function(win)
-    if win and win:id() then
-        previousWindowFrames[win:id()] = nil
-        previousWindowScreens[win:id()] = nil
-    end
-end)
-
-local function toggleMaximizeFocusedWindow()
-    local win, screen = getFocusedWindowAndScreen()
-    if not win then return end
-
-    local maxFrame = getMaxFrame(screen, obj.margin)
-    local id, frame = win:id(), win:frame()
-
-    if isWindowMaximized(frame, maxFrame) and previousWindowFrames[id] then
-        win:setFrame(previousWindowFrames[id], obj.animationDuration)
-        previousWindowFrames[id], previousWindowScreens[id] = nil, nil
-    else
-        previousWindowFrames[id], previousWindowScreens[id] = frame, screen:id()
-        win:setFrame(maxFrame, obj.animationDuration)
-    end
-end
-
 local function bindHotkeyWithRepeat(modifiers, key, pressFn, ...)
     local args = {...}
     hs.hotkey.bind(modifiers, key, function() pressFn(table.unpack(args)) end, nil, function() pressFn(table.unpack(args)) end)
@@ -213,9 +184,6 @@ function obj:start()
     -- Bind hotkeys to resize windows
     bindHotkeyWithRepeat({"alt", "shift"}, "=", resizeWindow, obj.resizeStep, obj.resizeStep)
     bindHotkeyWithRepeat({"alt", "shift"}, "-", resizeWindow, -obj.resizeStep, -obj.resizeStep)
-
-    -- Bind hotkey to toggle maximize
-    hs.hotkey.bind({"alt", "shift"}, "f", toggleMaximizeFocusedWindow)
 
     return self
 end
