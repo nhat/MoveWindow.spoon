@@ -8,6 +8,8 @@ obj.name = "MoveWindow"
 obj.moveStep = 10
 obj.margin = 8
 obj.resizeStep = 20 -- How many pixels to grow/shrink in each direction
+obj.centerRatio = { w = 0.9088, h = 0.9165 }
+obj.animationDuration = 0.20
 
 -- Helper functions for window operations
 local function getMaxFrame(screen, margin)
@@ -182,20 +184,43 @@ hs.window.filter.default:subscribe(hs.window.filter.windowDestroyed, function(wi
     end
 end)
 
-local function toggleMaximizeFocusedWindow()
+local function getCenteredFrame(screen, margin, ratio)
+    local maxFrame = getMaxFrame(screen, margin)
+    local w, h = math.floor(maxFrame.w * ratio.w), math.floor(maxFrame.h * ratio.h)
+    return {
+        x = math.floor(maxFrame.x + (maxFrame.w - w) / 2),
+        y = math.floor(maxFrame.y + (maxFrame.h - h) / 2),
+        w = w,
+        h = h
+    }
+end
+
+local function toggleFrame(targetFn)
     local win, screen = getFocusedWindowAndScreen()
     if not win then return end
 
-    local maxFrame = getMaxFrame(screen, obj.margin)
+    local target = targetFn(screen)
     local id, frame = win:id(), win:frame()
 
-    if isWindowMaximized(frame, maxFrame) and previousWindowFrames[id] then
-        win:setFrame(previousWindowFrames[id], 0)
+    if isWindowMaximized(frame, target) and previousWindowFrames[id] then
+        win:setFrame(previousWindowFrames[id], obj.animationDuration)
         previousWindowFrames[id], previousWindowScreens[id] = nil, nil
     else
-        previousWindowFrames[id], previousWindowScreens[id] = frame, screen:id()
-        win:setFrame(maxFrame, 0)
+        local managed = isWindowMaximized(frame, getMaxFrame(screen, obj.margin))
+            or isWindowMaximized(frame, getCenteredFrame(screen, obj.margin, obj.centerRatio))
+        if not (managed and previousWindowFrames[id]) then
+            previousWindowFrames[id], previousWindowScreens[id] = frame, screen:id()
+        end
+        win:setFrame(target, obj.animationDuration)
     end
+end
+
+local function toggleMaximizeFocusedWindow()
+    toggleFrame(function(screen) return getMaxFrame(screen, obj.margin) end)
+end
+
+local function toggleCenterFocusedWindow()
+    toggleFrame(function(screen) return getCenteredFrame(screen, obj.margin, obj.centerRatio) end)
 end
 
 local function bindHotkeyWithRepeat(modifiers, key, pressFn, ...)
@@ -214,7 +239,8 @@ function obj:start()
     bindHotkeyWithRepeat({"alt", "shift"}, "-", resizeWindow, -obj.resizeStep, -obj.resizeStep)
 
     -- Bind hotkey to toggle maximize
-    hs.hotkey.bind({"alt"}, "f", toggleMaximizeFocusedWindow)
+    hs.hotkey.bind({"alt"}, "f", toggleCenterFocusedWindow)
+    hs.hotkey.bind({"alt", "shift"}, "f", toggleMaximizeFocusedWindow)
 
     return self
 end
