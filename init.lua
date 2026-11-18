@@ -170,6 +170,12 @@ local function resizeWindow(dw, dh)
     win:setFrame(newFrame, 0) -- no animation
 end
 
+local function moveCursorToFocusedWindow()
+    local win = getFocusedWindowAndScreen()
+    if not win then return end
+    hs.mouse.absolutePosition(win:frame().center)
+end
+
 local function bindHotkeyWithRepeat(modifiers, key, pressFn, ...)
     local args = {...}
     hs.hotkey.bind(modifiers, key, function() pressFn(table.unpack(args)) end, nil, function() pressFn(table.unpack(args)) end)
@@ -184,6 +190,7 @@ function obj:start()
     -- Bind hotkeys to resize windows
     bindHotkeyWithRepeat({"alt", "shift"}, "=", resizeWindow, obj.resizeStep, obj.resizeStep)
     bindHotkeyWithRepeat({"alt", "shift"}, "-", resizeWindow, -obj.resizeStep, -obj.resizeStep)
+    hs.hotkey.bind({"cmd", "ctrl", "shift"}, "z", moveCursorToFocusedWindow)
 
     return self
 end
